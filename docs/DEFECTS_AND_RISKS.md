@@ -18,6 +18,11 @@ Kept current at the end of each phase. Severity: 🔴 must fix before any pilot,
 | 10 | 🟡 | Admin source-review uses a browser prompt for the review note. | Replace with an inline form. |
 | 11 | 🟡 | Login CSRF relies on SameSite=Lax only. | Acceptable for now; add a pre-session CSRF token if embedding contexts appear. |
 | 12 | 🟡 | `pgvector` is not installed in the dev container's Postgres. | Phase 3 starts with Postgres full-text search; add pgvector in deployment images. |
+| 14 | 🔴 | No real legal sources loaded. Official sites are blocked from the dev environment and India Code's robots.txt disallows crawling. | Researchers upload official files via the admin console; get written confirmation of each site's terms before any automation. |
+| 15 | 🟠 | Search is lexical only (English stemming); no semantic or Hindi search. | Add pgvector embeddings (hybrid ranking) where the extension is available; Hindi text configuration. |
+| 16 | 🟠 | Amendment/repeal status is maintained by hand; nothing detects gazette changes. | Gazette monitoring workflow and periodic re-verification queue (already flagged after 180 days). |
+| 17 | 🟠 | Source files are stored in Postgres (bytea) and not malware-scanned. | Move to encrypted object storage and add scanning with Phase 5 uploads. |
+| 18 | 🟡 | Section splitter is heuristic; complex layouts (schedules, provisos, tables) may split imperfectly. | Reviewers see the section list before verifying; add per-site parsers as sources are added. |
 | 13 | 🟡 | Jurisdiction codes follow ISO 3166-2:IN style but some ISO codes changed in 2023; treat as internal keys. | Add an `iso_code` column if interoperability needs it. |
 
 ## Risks

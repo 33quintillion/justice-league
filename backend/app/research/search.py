@@ -1,10 +1,12 @@
 """Retrieval over verified sources. This is what the AI roles will call before answering (Phase 4)."""
 from __future__ import annotations
 
+import re
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Float, cast, func, literal_column, select
+from sqlalchemy import Float, case, cast, func, literal_column, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
@@ -106,30 +108,46 @@ def search(
     limit: int = 10,
 ) -> dict:
     q = q.strip()
-    tsq = func.websearch_to_tsquery("english", q)
-    vec = literal_column("source_sections.search_vector")
-    rank = func.ts_rank_cd(vec, tsq, 32).cast(Float).label("rank")
-    headline = func.ts_headline(
-        "english", SourceSection.text, tsq,
-        f"StartSel={MARK_START}, StopSel={MARK_END}, MaxWords=45, MinWords=20, MaxFragments=2, FragmentDelimiter= … ",
-    ).label("snippet")
-    stmt = (
-        select(SourceSection, LegalSource, SourceDocument, rank, headline)
-        .join(LegalSource, LegalSource.id == SourceSection.source_id)
-        .join(SourceDocument, SourceDocument.id == SourceSection.document_id)
-        .where(vec.op("@@")(tsq))
-        .where(LegalSource.review_status == "verified", SourceDocument.is_current.is_(True))
-        .order_by(literal_column("rank").desc(), SourceSection.ordinal)
-        .limit(limit)
-    )
     codes = jurisdiction_codes(db, jurisdiction)
-    if codes:
-        stmt = stmt.where(LegalSource.jurisdiction_code.in_(codes))
-    if practice_area:
-        stmt = stmt.where(cast(LegalSource.practice_areas, JSONB).op("?")(practice_area))
-    if source_type:
-        stmt = stmt.where(LegalSource.source_type == source_type)
-    rows = db.execute(stmt).all() if q else []
+
+    def run(tsq, min_terms: int = 0, lexemes: list[str] = ()):
+        vec = literal_column("source_sections.search_vector")
+        rank = func.ts_rank_cd(vec, tsq, 32).cast(Float).label("rank")
+        headline = func.ts_headline(
+            "english", SourceSection.text, tsq,
+            f"StartSel={MARK_START}, StopSel={MARK_END}, MaxWords=45, MinWords=20, MaxFragments=2, FragmentDelimiter= … ",
+        ).label("snippet")
+        stmt = (
+            select(SourceSection, LegalSource, SourceDocument, rank, headline)
+            .join(LegalSource, LegalSource.id == SourceSection.source_id)
+            .join(SourceDocument, SourceDocument.id == SourceSection.document_id)
+            .where(vec.op("@@")(tsq))
+            .where(LegalSource.review_status == "verified", SourceDocument.is_current.is_(True))
+            .order_by(literal_column("rank").desc(), SourceSection.ordinal)
+            .limit(limit)
+        )
+        if min_terms:
+            # Partial matches must share several distinct terms with the question, not one stray word.
+            matched = sum(case((vec.op("@@")(func.to_tsquery("english", lx)), 1), else_=0) for lx in lexemes)
+            stmt = stmt.where(matched >= min_terms)
+        if codes:
+            stmt = stmt.where(LegalSource.jurisdiction_code.in_(codes))
+        if practice_area:
+            stmt = stmt.where(cast(LegalSource.practice_areas, JSONB).op("?")(practice_area))
+        if source_type:
+            stmt = stmt.where(LegalSource.source_type == source_type)
+        return db.execute(stmt).all()
+
+    # Exact intent first (all terms, phrases, -exclusions). Natural-language questions rarely match every
+    # word, so fall back to any-term matching; ranking still favours sections matching more terms.
+    match = "all_terms"
+    rows = run(func.websearch_to_tsquery("english", q)) if q else []
+    lexemes = db.scalar(select(func.tsvector_to_array(func.to_tsvector("english", q)))) if q else []
+    lexemes = [lx for lx in lexemes if re.fullmatch(r"[a-z0-9]+", lx)][:30]
+    if not rows and len(lexemes) > 1:
+        match = "some_terms"
+        need = max(2, round(len(lexemes) * 0.4))
+        rows = run(func.to_tsquery("english", " | ".join(lexemes)), need, lexemes)
 
     rels = relations_affecting(db, list({r.LegalSource.id for r in rows}))
     results = []
@@ -158,7 +176,9 @@ def search(
         notes.append("Both central and state sources matched. Which one applies, or whether both do, depends on the facts.")
     if any(w["level"] == "severe" for r in results for w in r["warnings"]):
         notes.append("Some results may no longer be good law. Read the warnings before relying on them.")
-    return {"query": q, "jurisdiction_filter": codes, "results": results, "notes": notes}
+    if results and match == "some_terms":
+        notes.append("No section contained every word of your search, so these results match some of the words.")
+    return {"query": q, "jurisdiction_filter": codes, "match": match, "results": results, "notes": notes}
 
 
 def section_with_context(db: Session, section_id: uuid.UUID) -> dict | None:

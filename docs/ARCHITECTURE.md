@@ -98,6 +98,8 @@ FastAPI generates OpenAPI at `/api/docs` in development. Validation errors retur
 | DoJ, NALSA, state legal services authorities | Guidance, legal aid directory | Contact details must be re-verified on a schedule. |
 | State government and High Court sites | State laws, rules | Heterogeneous formats; per-state connectors. |
 
+**Finding (Phase 3):** India Code's robots.txt disallows automated fetching, and the dev environment blocks these hosts. Ingestion is therefore researcher-uploaded official files (stored with hash, official URL and download date), not crawling.
+
 Government legal texts in India are generally publicly accessible, but terms of use for automated access differ per site; this needs a written review (and legal advice) before bulk ingestion. Commercial case-law databases are out of scope unless licensed.
 
 ## 5. Roadmap
@@ -106,7 +108,7 @@ Government legal texts in India are generally publicly accessible, but terms of 
 |---|---|---|
 | 1 | This document | Reviewed by product owner |
 | 2 ✅ | Auth, navigation, layouts, settings, cases, admin console, audit | Backend + browser tests pass (see report) |
-| 3 | Source ingestion (India Code first: e.g. Consumer Protection Act 2019, BNSS/BNS, Constitution Part III), chunking, hybrid search, citation verifier, Legal Library + Rights pages | Every displayed authority opens its official source; freshness tests; eval set v1 |
+| 3 ✅ | Source ingestion (India Code first: e.g. Consumer Protection Act 2019, BNSS/BNS, Constitution Part III), chunking, hybrid search, citation verifier, Legal Library + Rights pages | Every displayed authority opens its official source; freshness tests; eval set v1 |
 | 4 | LLM gateway; Ask AI, Advocate, Lawyer, Judge; urgency detection; prompt-injection defences | Eval set incl. "insufficient information" cases; zero unverifiable citations in eval |
 | 5 | Uploads (PDF/DOCX/images + OCR, malware scan, encryption), Document Studio, versions, DOCX/PDF export | Upload security tests; generated drafts mark placeholders and separate user facts |
 | 6 | Lawyer discovery + verification workflow, legal aid directory, payment provider, usage metering | All listings verified or labelled; entitlement tests |

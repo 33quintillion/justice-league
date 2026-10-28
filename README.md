@@ -2,7 +2,7 @@
 
 A public-interest legal information platform for India: understand your rights, organise your matter, and prepare to work with a qualified advocate. JUSTICE AI is **not** a lawyer, advocate or court.
 
-Current state: **Phase 2 (working foundation)**. Accounts, settings, private case workspaces with timelines, plan limits and the admin console work end to end. The AI roles, legal library and document studio are not built yet and are labelled as such in the app. See [`docs/PHASE_REPORTS.md`](docs/PHASE_REPORTS.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Current state: **Phase 3 (legal research)**. Accounts, settings, private case workspaces, plan limits, the admin console, and a verified-source legal library (official document ingestion, independent review, search, status warnings, citation verifier) work end to end. The AI roles and Document Studio are not built yet and are labelled as such in the app. No real legal sources are loaded yet: researchers add them from official sites through the admin console. See [`docs/PHASE_REPORTS.md`](docs/PHASE_REPORTS.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Layout
 
@@ -52,14 +52,27 @@ In development no email is sent: verification links appear at **/dev/outbox** (l
 # Backend: runs Alembic migrations down/up against TEST_DATABASE_URL (default: local justice_test)
 cd backend && python -m pytest -q
 
-# Browser journeys (Playwright + Chromium) against running servers
-cd frontend && npm run build && npm start &   # plus the API on :8000
-node e2e/run.mjs                              # screenshots in e2e/screenshots/
+# Browser journeys (Playwright + Chromium) against running servers.
+# Use a throwaway database: the Phase 3 journeys load fictional legal fixtures.
+createdb -O justice justice_e2e
+export DATABASE_URL=postgresql+psycopg://justice:...@localhost:5432/justice_e2e
+(cd backend && alembic upgrade head && python -m app.cli seed && uvicorn app.main:app --port 8000 &)
+cd frontend && npm run build && npm start &
+node e2e/run.mjs && node e2e/phase3.mjs       # screenshots in e2e/screenshots/
+
+# Grounding coverage of the legal evaluation set against the current library
+cd backend && python -m app.research.evaluate ../docs/eval/legal_eval_v1.jsonl
 ```
 
 ## Environment variables
 
 See [`.env.example`](.env.example). No secrets are committed; production must set `JUSTICE_ENV=production`, `COOKIE_SECURE=true`, a real `DATABASE_URL`, and an email backend.
+
+## Adding legal sources
+
+1. A legal researcher downloads the official file by hand from the official site (respecting its terms of use).
+2. Admin console → Legal sources → Add a source (official https URL required) → Upload official document.
+3. A different person with the content reviewer role checks the section split and metadata against the original and verifies it. Only then does it appear in the Legal Library and search.
 
 ## Safety rules for contributors
 

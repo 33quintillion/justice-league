@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..models import LegalSource, SourceDocument, SourceSection
 
-_ACT_NAME = r"(?:the\s+)?((?:\(?[A-Z][\w'’()&,-]*\s+){0,12}?(?:Act|Code|Sanhita|Adhiniyam|Rules|Regulations|Constitution(?:\s+of\s+India)?))(?:,?\s*(\d{4}))?"
+_ACT_NAME = r"(?:the\s+)?((?:(?:\(?[A-Z0-9][\w'’()&,.-]*|of|to|from|and|for|the|in|on|with|under)\s+){0,14}?(?:Act|Code|Sanhita|Adhiniyam|Rules|Regulations|Constitution(?:\s+of\s+India)?)(?!\s+(?:of|to|for|on)\s+[A-Z])|Code\s+of\s+(?:[A-Z]\w+\s?){1,4}?(?=,|\s+\d{4}|\s*$|\s+[a-z]))(?:,?\s*(\d{4}))?"
 STATUTE_RE = re.compile(
     r"\b(?P<unit>[Ss]ections?|[Ss]s?\.|[Aa]rticles?|[Aa]rt\.|[Rr]ules?|[Rr]egulations?)\s*"
     r"(?P<num>\d{1,4}[A-Z]{0,3})(?P<sub>(?:\s*\([0-9a-zA-Z]{1,5}\))*)\s+of\s+" + _ACT_NAME

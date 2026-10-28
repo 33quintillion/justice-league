@@ -323,3 +323,43 @@ def test_link_checker_classifies_links(team):
     assert counts == {"ok": 2, "broken": 2, "unreachable": 1}
     got = {s["id"]: s["link_status"] for s in reviewer.get("/api/admin/sources").json()}
     assert got == ids
+
+
+@pytest.mark.parametrize("text,num,name,year", [
+    ("Under Section 3 of The Fictional Tenancy (Test Fixture 1761) Act, 2099 the", "3", "The Fictional Tenancy (Test Fixture 1761) Act", "2099"),
+    ("Section 9 of the Code of Civil Procedure, 1908 applies", "9", "Code of Civil Procedure", "1908"),
+    ("section 6(1) of the Right to Information Act, 2005.", "6", "Right to Information Act", "2005"),
+    ("Article 21 of the Constitution of India", "21", "Constitution of India", None),
+    ("Section 12 of the Protection of Women from Domestic Violence Act, 2005", "12", "Protection of Women from Domestic Violence Act", "2005"),
+    ("Rule 3 of the Consumer Protection (E-Commerce) Rules, 2020", "3", "Consumer Protection (E-Commerce) Rules", "2020"),
+])
+def test_citation_parser_handles_real_world_name_shapes(text, num, name, year):
+    """Parsing only: these names are not looked up or asserted as law here."""
+    from app.research.citations import STATUTE_RE
+    m = STATUTE_RE.search(text)
+    assert m and (m.group("num"), m.groups()[3], m.groups()[4]) == (num, name, year)
+
+
+def test_eval_dataset_is_well_formed():
+    import os
+    from app.research.evaluate import load
+    items = load(os.path.join(os.path.dirname(__file__), "..", "..", "docs", "eval", "legal_eval_v1.jsonl"))
+    assert len(items) >= 25 and len({i["id"] for i in items}) == len(items)
+    cats = {i["category"] for i in items}
+    assert {"insufficient_information", "outdated_law", "conflicting_sources", "fabrication_bait", "urgent_safety"} <= cats
+    assert all(i["reference_answer"] is None and i["review_status"] == "needs_legal_review" for i in items)
+
+
+def test_natural_language_questions_fall_back_to_partial_matching(team):
+    researcher, reviewer = team
+    publish(researcher, reviewer)
+    res = Api().get("/api/library/search?q=My landlord has not returned my security deposit after I moved out&jurisdiction=IN-KA").json()
+    assert res["match"] == "some_terms" and res["results"][0]["ref"] == "Section 3"
+    assert any("match some of the words" in n for n in res["notes"])
+    exact = Api().get("/api/library/search?q=security deposit").json()
+    assert exact["match"] == "all_terms"
+    # A question about something else must not be "grounded" on one stray shared word ("paid").
+    off_topic = Api().get("/api/library/search?q=My employer has not paid my salary for three months").json()
+    assert off_topic["results"] == []
+    # Stop words alone must not produce noise.
+    assert Api().get("/api/library/search?q=the and of").json()["results"] == []
