@@ -24,3 +24,11 @@ OFFICIAL_DOMAINS = [
     "indiacode.nic.in", "sci.gov.in", "ecourts.gov.in", "doj.gov.in", "nalsa.gov.in",
     "egazette.gov.in", "gov.in", "nic.in",
 ]
+
+
+def is_official_url(url: str) -> bool:
+    from urllib.parse import urlparse
+
+    p = urlparse(url)
+    host = (p.hostname or "").lower()
+    return p.scheme == "https" and any(host == d or host.endswith("." + d) for d in OFFICIAL_DOMAINS)

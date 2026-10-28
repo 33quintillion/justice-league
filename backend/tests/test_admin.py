@@ -112,8 +112,11 @@ def test_source_requires_official_url_and_independent_review():
     assert researcher.post(f"/api/admin/sources/{sid}/review", {"decision": "verified", "notes": "self check"}).status_code == 403
     grant("res@example.com", "content_reviewer")
     assert researcher.post(f"/api/admin/sources/{sid}/review", {"decision": "verified", "notes": "self check"}).status_code == 409
+    # Verification needs the official document on file (covered in test_research.py).
     r = reviewer.post(f"/api/admin/sources/{sid}/review", {"decision": "verified", "notes": "Matched against India Code"})
-    assert r.status_code == 200 and r.json()["review_status"] == "verified" and r.json()["last_verified_at"]
+    assert r.status_code == 409 and "Upload the official document" in r.json()["detail"]
+    r = reviewer.post(f"/api/admin/sources/{sid}/review", {"decision": "rejected", "notes": "Wrong URL for this Act"})
+    assert r.status_code == 200 and r.json()["review_status"] == "rejected"
 
 
 def test_feature_flags_and_jurisdictions():
@@ -124,7 +127,7 @@ def test_feature_flags_and_jurisdictions():
     assert admin.patch("/api/admin/jurisdictions/IN-GA", {"enabled": False}).status_code == 200
     assert "IN-GA" not in [j["code"] for j in Api().get("/api/jurisdictions").json()]
     health = admin.get("/api/admin/health").json()
-    assert health["database"] == "ok" and health["alembic_revision"] == "0001"
+    assert health["database"] == "ok" and health["alembic_revision"] == "0002"
 
 
 def test_audit_log_is_append_only(db):

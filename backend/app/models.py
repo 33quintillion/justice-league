@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -207,6 +208,11 @@ class LegalSource(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 3
+    practice_areas: Mapped[list] = mapped_column(JSON, default=list)
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    link_status: Mapped[str] = mapped_column(String(20), default="unchecked")  # ok | broken | unreachable
+    link_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class FeatureFlag(Base):
@@ -231,3 +237,58 @@ class AuditLog(Base):
     target_id: Mapped[str] = mapped_column(String(80), default="")
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     ip: Mapped[str] = mapped_column(String(64), default="")
+
+
+class SourceDocument(Base):
+    """An original official file for a legal source, stored byte-for-byte with its hash.
+
+    The vector/full-text index is derived from this; the original stays the source of truth.
+    """
+
+    __tablename__ = "source_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(300))
+    media_type: Mapped[str] = mapped_column(String(100))
+    sha256: Mapped[str] = mapped_column(String(64))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    retrieved_from_url: Mapped[str] = mapped_column(String(1000))
+    retrieved_at: Mapped[date] = mapped_column(Date)
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+    extracted_chars: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SourceSection(Base):
+    """One citable unit (statute section or judgment paragraph) of a source document."""
+
+    __tablename__ = "source_sections"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_documents.id", ondelete="CASCADE"), index=True)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    ref: Mapped[str] = mapped_column(String(60))  # "Section 2", "Para 14", "Part 3"
+    ref_key: Mapped[str] = mapped_column(String(30), index=True)  # normalised: "2", "14", "35a"
+    heading: Mapped[str] = mapped_column(String(500), default="")
+    text: Mapped[str] = mapped_column(Text)
+    # search_vector is a generated tsvector column added in the migration (GIN indexed).
+
+
+class SourceRelation(Base):
+    """A recorded effect of one source on another (amends, repeals, overrules, stays...)."""
+
+    __tablename__ = "source_relations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    from_source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    to_source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    to_section_ref: Mapped[str] = mapped_column(String(30), default="")  # blank = whole source
+    effective_date: Mapped[date | None] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

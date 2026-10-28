@@ -4,21 +4,19 @@ No endpoint here returns case content, timelines or documents.
 """
 import uuid
 from datetime import datetime, timezone
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .. import audit
-from ..catalog import OFFICIAL_DOMAINS
 from ..db import get_db
 from ..deps import require
 from ..models import AuditLog, AuthSession, Case, FeatureFlag, Jurisdiction, LegalSource, Plan, Subscription, User, UserRole
 from ..permissions import Perm, Role
 from ..schemas import (
     AdminUserOut, AuditOut, FlagIn, FlagOut, JurisdictionOut, JurisdictionPatch, PlanOut, PlanPatch,
-    ReviewIn, RolesIn, SourceIn, SourceOut, SubscriptionIn, SuspendIn,
+    RolesIn, SubscriptionIn, SuspendIn,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -148,65 +146,6 @@ def update_plan(
                  details=body.model_dump(mode="json", exclude_unset=True), request=request)
     db.commit()
     return plan
-
-
-# ---- legal sources ----
-def _is_official(url: str) -> bool:
-    p = urlparse(url)
-    host = (p.hostname or "").lower()
-    return p.scheme == "https" and any(host == d or host.endswith("." + d) for d in OFFICIAL_DOMAINS)
-
-
-@router.get("/sources", response_model=list[SourceOut])
-def list_sources(
-    review_status: str | None = None,
-    _: User = Depends(require(Perm.SOURCES_READ)), db: Session = Depends(get_db),
-):
-    stmt = select(LegalSource).order_by(LegalSource.created_at.desc())
-    if review_status:
-        stmt = stmt.where(LegalSource.review_status == review_status)
-    return db.scalars(stmt).all()
-
-
-@router.post("/sources", response_model=SourceOut, status_code=201)
-def create_source(
-    body: SourceIn, request: Request,
-    actor: User = Depends(require(Perm.SOURCES_WRITE)), db: Session = Depends(get_db),
-):
-    if not _is_official(body.official_url):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "Source URL must be an https link on an official government domain (for example indiacode.nic.in or sci.gov.in)",
-        )
-    if db.get(Jurisdiction, body.jurisdiction_code) is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown jurisdiction")
-    src = LegalSource(**body.model_dump(), created_by=actor.id, review_status="pending_review")
-    db.add(src)
-    db.flush()
-    audit.record(db, "source.created", actor_id=actor.id, target_type="legal_source", target_id=src.id, request=request)
-    db.commit()
-    return src
-
-
-@router.post("/sources/{source_id}/review", response_model=SourceOut)
-def review_source(
-    source_id: uuid.UUID, body: ReviewIn, request: Request,
-    actor: User = Depends(require(Perm.SOURCES_REVIEW)), db: Session = Depends(get_db),
-):
-    src = db.get(LegalSource, source_id)
-    if src is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
-    if src.created_by == actor.id:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A source must be reviewed by someone other than its author")
-    src.review_status = body.decision
-    src.reviewed_by = actor.id
-    if body.decision == "verified":
-        src.last_verified_at = datetime.now(timezone.utc)
-    src.notes = (src.notes + "\n\n" if src.notes else "") + f"[review {body.decision}] {body.notes}"
-    audit.record(db, "source.reviewed", actor_id=actor.id, target_type="legal_source", target_id=src.id,
-                 details={"decision": body.decision}, request=request)
-    db.commit()
-    return src
 
 
 # ---- jurisdictions ----
