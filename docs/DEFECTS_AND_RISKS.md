@@ -13,7 +13,7 @@ Kept current at the end of each phase. Severity: 🔴 must fix before any pilot,
 | 5 | 🟠 | Retention settings are stored but no scheduled purge job runs yet (the UI says so). | Scheduled worker that deletes closed cases past the user's retention window, with audit entries. |
 | 6 | 🟠 | Hindi covers navigation, home, auth and key headings only; other strings fall back to English. Hindi copy needs native-speaker and legal-terminology review. | Move strings into dictionaries per page; professional translation; add more Indian languages. |
 | 7 | 🟠 | No payment provider: plans are assigned by billing admins; prices are deliberately unset. | Phase 6. |
-| 8 | 🟠 | Usage metering (`ai_questions_per_month`) is defined but not enforced because there are no AI questions yet. | Enforced in Phase 4 with a `usage_counters` table. |
+| 8 | ✅ | ~~Usage metering not enforced.~~ Enforced in Phase 4 (monthly, IST; deleted answers still count). | Done. |
 | 9 | 🟠 | No break-glass access flow for legitimate support access to a case; currently staff simply cannot access cases. | Design user-consented, time-limited, audited access grant. |
 | 10 | 🟡 | Admin source-review uses a browser prompt for the review note. | Replace with an inline form. |
 | 11 | 🟡 | Login CSRF relies on SameSite=Lax only. | Acceptable for now; add a pre-session CSRF token if embedding contexts appear. |
@@ -24,6 +24,11 @@ Kept current at the end of each phase. Severity: 🔴 must fix before any pilot,
 | 17 | 🟠 | Source files are stored in Postgres (bytea) and not malware-scanned. | Move to encrypted object storage and add scanning with Phase 5 uploads. |
 | 18 | 🟡 | Section splitter is heuristic; complex layouts (schedules, provisos, tables) may split imperfectly. | Reviewers see the section list before verifying; add per-site parsers as sources are added. |
 | 13 | 🟡 | Jurisdiction codes follow ISO 3166-2:IN style but some ISO codes changed in 2023; treat as internal keys. | Add an `iso_code` column if interoperability needs it. |
+
+| 19 | 🔴 | No live AI model has been run: no API key in this environment; prompts are untested against real output. | Set `ANTHROPIC_API_KEY` on the server, run the eval set, legal review before enabling flags. |
+| 20 | 🟠 | Urgency detection is keyword-based (English, Hindi, romanised Hindi); misses unusual phrasing. | Expand with reviewed phrases; consider a classifier, keeping the rule-based check as the first line. |
+| 21 | 🟠 | AI answers send the question, chosen case facts and retrieved law to Anthropic. Needs a DPDP Act review and a data-processing agreement before launch. | Legal/privacy review in Phase 7. |
+| 22 | 🟡 | AI calls are synchronous (up to 180 s); a slow model ties up a worker. | Move to a background job with progress polling if latency is a problem. |
 
 ## Risks
 

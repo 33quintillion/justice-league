@@ -1,7 +1,15 @@
-import { ModuleStatus } from "@/components/ModuleStatus";
+import { AIRole } from "@/components/AIRole";
 
 export const metadata = { title: "AI Lawyer" };
 
 export default function Page() {
-  return <ModuleStatus title={"AI Lawyer"} flag={"ai_lawyer"} phase={"Phase 4"} purpose={"Explains the law in plain language and prepares editable first drafts."} planned={["Explains statutes, sections, rules and judgments, with sources", "Compares legal options and procedures, limitation periods and jurisdiction", "Highlights problematic or missing clauses in documents", "Recommends when professional advice is needed"]} safeguards={["Every AI-generated document must be reviewed before it is filed, signed or served"]} />;
+  return (
+    <AIRole
+      role="lawyer"
+      title={"AI Lawyer"}
+      intro={"Understand the law that applies to your situation, your options, the procedure step by step and the documents to gather, from verified official sources."}
+      safeguards={["Explains options and procedure only from verified sources, each one linked to the original.", "Separates verified law from explanation, assumptions and uncertainty.", "It is not a lawyer and cannot represent you. For advice on your facts, speak to an advocate or your legal services authority."]}
+      placeholder={"e.g. My employer has not paid my last two months' salary. What can I do?"}
+    />
+  );
 }

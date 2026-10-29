@@ -196,14 +196,21 @@ type Flag = { key: string; description: string; enabled: boolean };
 
 function Flags() {
   const { data, error, setError, reload } = useLoad<Flag[]>("/api/admin/flags");
+  // Optimistic, like the consent checkboxes: show the new state at once and roll back if saving fails.
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+  function toggle(key: string, enabled: boolean) {
+    setPending((p) => ({ ...p, [key]: enabled }));
+    api(`/api/admin/flags/${key}`, { method: "PUT", body: { enabled } })
+      .then(reload, setError)
+      .finally(() => setPending((p) => { const { [key]: _, ...rest } = p; return rest; }));
+  }
   return (
     <>
       <FormError error={error} />
       <div className="card">
         {data?.map((f) => (
           <label key={f.key} className="check" style={{ marginBottom: ".6rem" }}>
-            <input type="checkbox" checked={f.enabled} onChange={(e) =>
-              api(`/api/admin/flags/${f.key}`, { method: "PUT", body: { enabled: e.target.checked } }).then(reload, setError)} />
+            <input type="checkbox" checked={pending[f.key] ?? f.enabled} onChange={(e) => toggle(f.key, e.target.checked)} />
             <span><strong>{f.key}</strong> — {f.description}</span>
           </label>
         ))}
