@@ -138,7 +138,7 @@ function SettingsBody() {
         <label className="check">
           <input type="checkbox" checked={s.consent_ai_processing}
             onChange={(e) => save({ consent_ai_processing: e.target.checked }, "Consent")} />
-          <span>Allow JUSTICE AI to process my case information with AI models to answer my questions. (Required for AI features once they launch.)</span>
+          <span>Allow JUSTICE AI to process my questions and case information with AI to answer them. Your question, the case details you choose to use and the matching legal texts are sent to our AI provider, Anthropic, to generate the answer. (Required for the AI roles.)</span>
         </label>
         <label className="check">
           <input type="checkbox" checked={s.consent_training_use}

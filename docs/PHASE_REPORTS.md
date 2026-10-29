@@ -59,3 +59,63 @@ The official sites (indiacode.nic.in, sci.gov.in, egazette.gov.in, nalsa.gov.in)
 ### Next priorities
 1. Decide how sources get loaded: a researcher uploads official files through the admin console, or the environment allows the official domains (subject to each site's terms).
 2. Phase 4: provider-independent LLM gateway and the three AI roles, answering only from retrieved verified sections and passing the citation verifier, plus urgent-matter detection.
+
+## Phase 4 — AI roles (2026-10-29)
+
+### Key finding first
+The four AI roles work end to end, but **no live model has answered a question yet**: this server has no Anthropic API key, so the AI endpoints honestly reply "not configured" and the pages say so. Every test runs against a fake provider (backend) or a local stand-in for the Anthropic API (browser journeys), which exercises the real request and response code. And because no real law is loaded yet (Phase 3 finding), a live model would currently answer "cannot verify" to almost everything, by design.
+
+### Completed and working (tested)
+- **LLM gateway** (`backend/app/ai/provider.py`): one `generate()` interface; the Anthropic implementation uses `claude-opus-5-5` (configurable with `JUSTICE_AI_MODEL`), structured outputs (a JSON schema per role), effort `medium`, a 180-second timeout, and server-side refusal fallback (`fallbacks: "default"`). Refusals, truncation, malformed output, bad keys and outages become plain messages; nothing is shown half-checked. Without `ANTHROPIC_API_KEY` the gateway reports "not configured".
+- **Four roles**, each behind its feature flag (off until an administrator turns it on):
+  - **Ask AI**: short grounded answers.
+  - **AI Lawyer**: also gives options, procedure and documents to gather.
+  - **AI Advocate**: works on one of the user's cases, giving issues, supporting points, an evidence checklist and weaknesses.
+  - **AI Judge**: works on a case, covering issues, agreed and disputed facts, missing evidence, both sides' arguments, burden of proof, a hypothetical assessment in words and what could change it. Every Judge page and answer carries "Hypothetical AI legal analysis — not an actual judicial decision" (set by the server, not the model).
+- **Retrieval first**: up to 8 verified sections are retrieved, using the question and, for case roles, the case title and summary. If nothing verified matches, the answer is "cannot verify", **the model is not called**, and it does not count towards usage.
+- **Prompt-injection defences**: source text, the question and case facts sit inside delimited blocks that the model is told are data. Angle brackets in that text are neutralised so it cannot close a block (tested with a hostile source).
+- **Every answer is checked before it is shown** (`backend/app/ai/validate.py`):
+  - Statements may cite only sources that were actually retrieved.
+  - Legal statements without a source are removed, and the user is told.
+  - Links other than a retrieved source's official link are removed.
+  - Percentages and odds are removed.
+  - All remaining text goes through the Phase 3 citation verifier, and anything unverifiable is flagged.
+  - An answer with no supported point becomes "cannot verify".
+- **Urgent-help detection** (English, Hindi and romanised Hindi; rule-based, no AI, no login, nothing stored) covers violence, domestic violence, sexual violence, child safety, self-harm, arrest or detention and same-day or next-day deadlines. It shows "Call 112" and free legal aid at once, before the answer arrives. It names no helpline numbers beyond 112.
+- **Consent and limits**:
+  - AI processing consent is required; the Settings text now names Anthropic as the provider.
+  - A verified email is required.
+  - The plan's `ai_questions_per_month` is enforced, counted per calendar month in IST.
+  - There is a per-user rate limit.
+  - Deleting an answer erases its content but still counts towards usage, so the limit cannot be reset.
+- **Records**:
+  - Each answer stores the role, model, prompt version, provider request id, token counts, the checks report, and for every source the label, whether it was cited, the section text and the document SHA-256.
+  - Answers are private to their owner: there is no staff endpoint, and this is tested.
+  - Answers are included in the account export.
+  - Deleting a case erases the answers about it.
+  - The audit log records that an answer was produced, never its content.
+- **UI**:
+  - Pages for the four roles share one component, which shows a sources list with "View original source", library links and the document version.
+  - It also lists what the checks removed or flagged, and the user's previous answers with delete.
+  - Case pages link to AI Advocate and AI Judge.
+  - The admin feature-flag toggles are now optimistic.
+
+### Test results
+- Backend: **103/103 passed** (37 new Phase 4 tests: urgency in English and Hindi, every gate, grounding, removals, injection, Judge label and no numbers, limits, privacy, export, and the Anthropic request shape and error handling via a mock transport).
+- Browser (Chromium, production build, e2e database, local Anthropic stand-in): **Phase 4 9/9**, **Phase 3 9/9**, **Phase 2 15/15**.
+- Defects found and fixed during testing:
+  - The admin flag checkbox did not change state until the server replied.
+  - The answer-history Delete button was invisible (wrong button style).
+  - The Phase 2 journey still expected the AI pages to be placeholders.
+
+### Known limitations
+- **No live model run yet** (no API key here). The prompts have not been tuned against real model output, and the evaluation set has not been run through a model.
+- Answer quality depends on the library, which holds no real law yet.
+- Urgency detection is keyword-based: it can miss unusual phrasing and can over-trigger. It errs towards showing help.
+- Hindi questions only find English sources through shared words; Hindi search awaits Phase 3's Hindi text configuration.
+- The rate limiter is in-memory (defect 4).
+
+### Next priorities
+1. Add `ANTHROPIC_API_KEY` to the server environment (never to the repo), then run the evaluation set through the live model and review the answers with a qualified legal reviewer before switching any flag on for users.
+2. Load real law (official domains allowed, then reviewed by a content reviewer).
+3. Phase 5: uploads, OCR and Document Studio.
