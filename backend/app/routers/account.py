@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from .. import audit
 from ..db import get_db
 from ..deps import CSRF_COOKIE, SESSION_COOKIE, current_user
-from ..models import Case, Jurisdiction, User, UserSettings
+from ..ai.pipeline import answer_out
+from ..models import AIAnswer, Case, Jurisdiction, User, UserSettings
 from ..schemas import CaseOut, PasswordConfirmIn, SettingsIn, SettingsOut
 from ..security import verify_password
 
@@ -77,6 +78,7 @@ def update_settings(body: SettingsIn, request: Request, user: User = Depends(cur
 def export_account(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Everything we hold about the user, as JSON. Password hashes and session tokens are excluded."""
     cases = db.scalars(select(Case).where(Case.owner_id == user.id).order_by(Case.created_at)).all()
+    answers = db.scalars(select(AIAnswer).where(AIAnswer.user_id == user.id, AIAnswer.deleted_at.is_(None)).order_by(AIAnswer.created_at)).all()
     audit.record(db, "account.exported", actor_id=user.id, target_type="user", target_id=user.id, request=request)
     db.commit()
     payload = {
@@ -91,6 +93,7 @@ def export_account(request: Request, user: User = Depends(current_user), db: Ses
         },
         "settings": settings_out(user).model_dump(mode="json"),
         "cases": [CaseOut.model_validate(c).model_dump(mode="json") for c in cases],
+        "ai_answers": [answer_out(a) for a in answers],
     }
     return Response(
         content=json.dumps(payload, indent=2, ensure_ascii=False),

@@ -127,7 +127,8 @@ def test_feature_flags_and_jurisdictions():
     assert admin.patch("/api/admin/jurisdictions/IN-GA", {"enabled": False}).status_code == 200
     assert "IN-GA" not in [j["code"] for j in Api().get("/api/jurisdictions").json()]
     health = admin.get("/api/admin/health").json()
-    assert health["database"] == "ok" and health["alembic_revision"] == "0002"
+    assert health["database"] == "ok" and health["alembic_revision"] == "0003"
+    assert health["ai_provider_configured"] is False
 
 
 def test_audit_log_is_append_only(db):
