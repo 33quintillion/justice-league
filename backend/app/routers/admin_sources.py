@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import audit
@@ -14,6 +14,7 @@ from ..deps import require
 from ..models import Jurisdiction, LegalSource, SourceDocument, SourceRelation, SourceSection, User
 from ..permissions import Perm
 from ..research import ingest, links
+from ..research.store import store_document
 from ..research.search import RELATION_KINDS, relations_affecting, source_warnings
 from ..schemas import DocumentOut, RelationIn, ReviewIn, SectionOut, SourceIn, SourceOut, SourcePatch
 
@@ -119,25 +120,10 @@ async def upload_document(
     if len(data) > ingest.MAX_UPLOAD_BYTES:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "File is larger than 25 MB")
     try:
-        media_type = ingest.sniff_media_type(data, file.content_type)
-        text = ingest.extract_text(data, media_type)
+        doc, parsed = store_document(db, src, data, filename=file.filename or "upload", retrieved_from_url=retrieved_from_url,
+                                     retrieved_at=retrieved_at, uploaded_by=actor.id, declared_type=file.content_type)
     except ingest.IngestError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
-    parsed = ingest.split_sections(text, src.source_type, src.title)
-
-    db.execute(update(SourceDocument).where(SourceDocument.source_id == src.id).values(is_current=False))
-    doc = SourceDocument(
-        source_id=src.id, filename=(file.filename or "upload")[:300], media_type=media_type, sha256=ingest.sha256(data),
-        size_bytes=len(data), content=data, retrieved_from_url=retrieved_from_url, retrieved_at=retrieved_at,
-        uploaded_by=actor.id, is_current=True, extracted_chars=len(text),
-    )
-    db.add(doc)
-    db.flush()
-    db.add_all(
-        SourceSection(source_id=src.id, document_id=doc.id, ordinal=i, ref=p.ref, ref_key=p.ref_key, heading=p.heading[:500], text=p.text)
-        for i, p in enumerate(parsed)
-    )
-    _send_back_for_review(src)
     audit.record(db, "source.document_uploaded", actor_id=actor.id, target_type="legal_source", target_id=src.id,
                  details={"document_id": str(doc.id), "sha256": doc.sha256, "sections": len(parsed)}, request=request)
     db.commit()
