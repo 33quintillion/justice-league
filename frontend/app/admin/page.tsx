@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { FormError } from "@/components/FormError";
 import { RequireAuth } from "@/components/RequireAuth";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Jurisdiction } from "@/lib/useJurisdictions";
+import { Sources } from "@/components/admin/Sources";
+import { useLoad } from "@/lib/useLoad";
 
 const TABS = [
   { id: "users", label: "Users", perm: "users.read" },
@@ -54,15 +56,6 @@ function Admin() {
   );
 }
 
-function useLoad<T>(path: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const reload = useCallback(() => api<T>(path).then(setData, setError), [path]);
-  useEffect(() => {
-    reload();
-  }, [reload]);
-  return { data, error, setError, reload };
-}
 
 type AdminUser = { id: string; email: string; display_name: string; email_verified: boolean; is_suspended: boolean;
   roles: string[]; plan_code: string; created_at: string; case_count: number };
@@ -151,97 +144,6 @@ function Users() {
               <div><button className={`btn ${selected.is_suspended ? "" : "btn-danger"}`}>{selected.is_suspended ? "Reinstate account" : "Suspend account"}</button></div>
             </form>
           )}
-        </div>
-      )}
-    </>
-  );
-}
-
-type Source = { id: string; title: string; source_type: string; authority_level: string; jurisdiction_code: string;
-  official_url: string; publisher: string; citation: string; effective_date: string | null; legal_status: string;
-  review_status: string; notes: string; created_by: string | null; last_verified_at: string | null };
-
-function Sources() {
-  const { can, me } = useAuth();
-  const { data, error, setError, reload } = useLoad<Source[]>("/api/admin/sources");
-  const [msg, setMsg] = useState("");
-
-  async function create(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const f = Object.fromEntries(new FormData(form));
-    setError(null);
-    try {
-      await api("/api/admin/sources", { method: "POST", body: { ...f, effective_date: f.effective_date || null } });
-      form.reset();
-      setMsg("Source added and sent for review.");
-      reload();
-    } catch (err) {
-      setError(err);
-    }
-  }
-
-  async function review(id: string, decision: "verified" | "rejected") {
-    const notes = window.prompt(`Review note for marking this source ${decision} (what did you check?)`);
-    if (!notes) return;
-    setError(null);
-    try {
-      await api(`/api/admin/sources/${id}/review`, { method: "POST", body: { decision, notes } });
-      setMsg(`Source marked ${decision}.`);
-      reload();
-    } catch (err) {
-      setError(err);
-    }
-  }
-
-  return (
-    <>
-      <p className="muted">Phase 2 stores source metadata and runs the review workflow. Fetching, parsing and indexing source text arrives in Phase 3.</p>
-      <FormError error={error} />
-      {msg && <div className="alert alert-ok" role="status">{msg}</div>}
-      <div className="table-wrap card">
-        <table className="data">
-          <thead><tr><th>Title</th><th>Type</th><th>Jurisdiction</th><th>Legal status</th><th>Review</th><th /></tr></thead>
-          <tbody>
-            {data?.length === 0 && <tr><td colSpan={6}>No sources yet.</td></tr>}
-            {data?.map((s) => (
-              <tr key={s.id}>
-                <td><a href={s.official_url} target="_blank" rel="noopener noreferrer">{s.title}</a>
-                  {s.citation && <div className="muted">{s.citation}</div>}</td>
-                <td>{s.source_type}<div className="muted">{s.authority_level}</div></td>
-                <td>{s.jurisdiction_code}</td>
-                <td>{s.legal_status}</td>
-                <td><span className={`badge ${s.review_status === "verified" ? "badge-ok" : s.review_status === "rejected" ? "badge-err" : "badge-warn"}`}>{s.review_status}</span>
-                  {s.last_verified_at && <div className="muted">{new Date(s.last_verified_at).toLocaleDateString()}</div>}</td>
-                <td>
-                  {can("sources.review") && s.review_status === "pending_review" && s.created_by !== me?.id && (
-                    <div className="row">
-                      <button className="btn btn-small" onClick={() => review(s.id, "verified")}>Verify</button>
-                      <button className="btn btn-small btn-secondary" onClick={() => review(s.id, "rejected")}>Reject</button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {can("sources.write") && (
-        <div className="card">
-          <h2>Add a source</h2>
-          <p className="muted">Only https links on official government domains are accepted. A different person must verify it.</p>
-          <form className="stack" onSubmit={create}>
-            <label className="field">Title<input name="title" required minLength={3} /></label>
-            <label className="field">Official URL<input name="official_url" type="url" required placeholder="https://www.indiacode.nic.in/…" /></label>
-            <label className="field">Type<select name="source_type">{["legislation", "rule_regulation", "notification_gazette", "judgment", "official_guidance"].map((x) => <option key={x}>{x}</option>)}</select></label>
-            <label className="field">Authority<select name="authority_level">{["legislation", "regulation", "binding", "persuasive", "general_guidance"].map((x) => <option key={x}>{x}</option>)}</select></label>
-            <label className="field">Jurisdiction code<input name="jurisdiction_code" defaultValue="IN" required /></label>
-            <label className="field">Publisher<input name="publisher" /></label>
-            <label className="field">Citation (e.g. Act number, case number)<input name="citation" /></label>
-            <label className="field">Effective date<input name="effective_date" type="date" /></label>
-            <label className="field">Legal status<select name="legal_status">{["unknown", "in_force", "amended", "partially_in_force", "repealed", "stayed", "overruled"].map((x) => <option key={x}>{x}</option>)}</select></label>
-            <div><button className="btn">Add for review</button></div>
-          </form>
         </div>
       )}
     </>

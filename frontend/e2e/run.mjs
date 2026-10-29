@@ -71,7 +71,7 @@ await step("skip link is the first keyboard stop and moves focus to main", async
 });
 
 await step("unimplemented modules are honestly labelled, with no fake actions", async () => {
-  for (const p of ["/ask", "/advocate", "/lawyer", "/judge", "/documents", "/find-lawyer", "/library", "/rights"]) {
+  for (const p of ["/ask", "/advocate", "/lawyer", "/judge", "/documents", "/find-lawyer"]) {
     await page.goto(BASE + p);
     await page.getByText("Not available yet").first().waitFor();
     expect((await page.locator("main form, main input, main textarea").count()) === 0, `${p} has inputs`);
