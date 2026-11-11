@@ -82,3 +82,16 @@ export const STAGE_LABELS: Record<string, string> = {
   appeal: "Appeal",
   closed: "Closed",
 };
+
+/** Multipart upload (e.g. official source documents). Same error handling and CSRF header as api(). */
+export async function apiForm<T = unknown>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", body: form, credentials: "same-origin", headers: { "X-CSRF-Token": csrfToken() } });
+  } catch {
+    throw new ApiError(0, "We couldn't reach the server. Check your connection and try again.");
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, data?.detail ?? `Upload failed (${res.status})`, data?.errors ?? []);
+  return data as T;
+}

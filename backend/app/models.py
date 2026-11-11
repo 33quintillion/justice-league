@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -207,6 +208,11 @@ class LegalSource(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 3
+    practice_areas: Mapped[list] = mapped_column(JSON, default=list)
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    link_status: Mapped[str] = mapped_column(String(20), default="unchecked")  # ok | broken | unreachable
+    link_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class FeatureFlag(Base):
@@ -231,3 +237,114 @@ class AuditLog(Base):
     target_id: Mapped[str] = mapped_column(String(80), default="")
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     ip: Mapped[str] = mapped_column(String(64), default="")
+
+
+class SourceDocument(Base):
+    """An original official file for a legal source, stored byte-for-byte with its hash.
+
+    The vector/full-text index is derived from this; the original stays the source of truth.
+    """
+
+    __tablename__ = "source_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(300))
+    media_type: Mapped[str] = mapped_column(String(100))
+    sha256: Mapped[str] = mapped_column(String(64))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    retrieved_from_url: Mapped[str] = mapped_column(String(1000))
+    retrieved_at: Mapped[date] = mapped_column(Date)
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+    extracted_chars: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SourceSection(Base):
+    """One citable unit (statute section or judgment paragraph) of a source document."""
+
+    __tablename__ = "source_sections"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("source_documents.id", ondelete="CASCADE"), index=True)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    ref: Mapped[str] = mapped_column(String(60))  # "Section 2", "Para 14", "Part 3"
+    ref_key: Mapped[str] = mapped_column(String(30), index=True)  # normalised: "2", "14", "35a"
+    heading: Mapped[str] = mapped_column(String(500), default="")
+    text: Mapped[str] = mapped_column(Text)
+    # search_vector is a generated tsvector column added in the migration (GIN indexed).
+
+
+class SourceRelation(Base):
+    """A recorded effect of one source on another (amends, repeals, overrules, stays...)."""
+
+    __tablename__ = "source_relations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    from_source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    to_source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("legal_sources.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    to_section_ref: Mapped[str] = mapped_column(String(30), default="")  # blank = whole source
+    effective_date: Mapped[date | None] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AIAnswer(Base):
+    """One AI role response, private to its owner. Staff have no endpoint that reads these."""
+
+    __tablename__ = "ai_answers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cases.id", ondelete="SET NULL"), index=True)
+    role: Mapped[str] = mapped_column(String(20))  # ask | lawyer | advocate | judge
+    question: Mapped[str] = mapped_column(Text)
+    jurisdiction_code: Mapped[str | None] = mapped_column(String(10))
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    status: Mapped[str] = mapped_column(String(30))  # answered | cannot_verify | needs_more_information
+    response: Mapped[dict] = mapped_column(JSON, default=dict)
+    checks: Mapped[dict] = mapped_column(JSON, default=dict)
+    urgency: Mapped[dict] = mapped_column(JSON, default=dict)
+    llm_called: Mapped[bool] = mapped_column(Boolean, default=False)
+    counts_toward_usage: Mapped[bool] = mapped_column(Boolean, default=False)
+    provider: Mapped[str] = mapped_column(String(30), default="")
+    model: Mapped[str] = mapped_column(String(80), default="")
+    prompt_version: Mapped[str] = mapped_column(String(40), default="")
+    provider_request_id: Mapped[str] = mapped_column(String(120), default="")
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    # Deleting an answer erases its content but keeps this row so monthly usage cannot be reset by deleting.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    def erase(self) -> None:
+        self.question, self.response, self.checks, self.urgency = "", {}, {}, {}
+        self.case_id, self.deleted_at = None, utcnow()
+        self.citations.clear()
+
+    citations: Mapped[list[AIAnswerCitation]] = relationship(
+        cascade="all, delete-orphan", order_by="AIAnswerCitation.label", lazy="selectin"
+    )
+
+
+class AIAnswerCitation(Base):
+    """The exact source version an answer relied on, kept even if the library later changes."""
+
+    __tablename__ = "ai_answer_citations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    answer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ai_answers.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str] = mapped_column(String(10))  # S1, S2 ... as used in the answer
+    cited: Mapped[bool] = mapped_column(Boolean, default=False)  # False: retrieved and shown to the model only
+    source_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("legal_sources.id", ondelete="SET NULL"))
+    section_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("source_sections.id", ondelete="SET NULL"))
+    document_sha256: Mapped[str] = mapped_column(String(64), default="")
+    source_title: Mapped[str] = mapped_column(String(400))
+    section_ref: Mapped[str] = mapped_column(String(60), default="")
+    official_url: Mapped[str] = mapped_column(String(1000))
+    section_text: Mapped[str] = mapped_column(Text, default="")

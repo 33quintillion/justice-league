@@ -1,0 +1,53 @@
+{
+  "_comment": "Official files the importer may fetch. Only add URLs on official government sites whose robots.txt permits automated access; the importer re-checks robots.txt every run. Metadata here is what the publisher states; legal status stays 'unknown' until a reviewer confirms it.",
+  "sources": [
+    {
+      "key": "constitution",
+      "title": "The Constitution of India",
+      "citation": "Constitution of India (Legislative Department edition as on February 2026)",
+      "source_type": "legislation",
+      "authority_level": "legislation",
+      "jurisdiction_code": "IN",
+      "publisher": "Legislative Department, Ministry of Law and Justice",
+      "official_url": "https://www.legislative.gov.in/static/uploads/2025/07/316140f5938919bbbce4c22f1bf3d5ff.pdf",
+      "practice_areas": ["constitutional"],
+      "notes": "Consolidated edition published by the Legislative Department."
+    },
+    {
+      "key": "bns",
+      "title": "The Bharatiya Nyaya Sanhita, 2023",
+      "citation": "Act No. 45 of 2023",
+      "source_type": "legislation",
+      "authority_level": "legislation",
+      "jurisdiction_code": "IN",
+      "publisher": "Ministry of Home Affairs (Gazette of India copy)",
+      "official_url": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf",
+      "practice_areas": ["criminal", "women_child_protection"],
+      "notes": "Text as enacted (Gazette of India copy). Reviewer to confirm commencement and any later amendments."
+    },
+    {
+      "key": "bnss",
+      "title": "The Bharatiya Nagarik Suraksha Sanhita, 2023",
+      "citation": "Act No. 46 of 2023",
+      "source_type": "legislation",
+      "authority_level": "legislation",
+      "jurisdiction_code": "IN",
+      "publisher": "Ministry of Home Affairs (Gazette of India copy)",
+      "official_url": "https://www.mha.gov.in/sites/default/files/2024-04/250884_2_english_01042024.pdf",
+      "practice_areas": ["criminal", "police_procedure"],
+      "notes": "Text as enacted (Gazette of India copy). Reviewer to confirm commencement and any later amendments."
+    },
+    {
+      "key": "bsa",
+      "title": "The Bharatiya Sakshya Adhiniyam, 2023",
+      "citation": "Act No. 47 of 2023",
+      "source_type": "legislation",
+      "authority_level": "legislation",
+      "jurisdiction_code": "IN",
+      "publisher": "Ministry of Home Affairs (Gazette of India copy)",
+      "official_url": "https://www.mha.gov.in/sites/default/files/250882_english_01042024.pdf",
+      "practice_areas": ["criminal", "civil"],
+      "notes": "Text as enacted (Gazette of India copy). Reviewer to confirm commencement and any later amendments."
+    }
+  ]
+}

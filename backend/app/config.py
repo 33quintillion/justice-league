@@ -17,6 +17,7 @@ class Settings:
         self.bootstrap_admin_email = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "").strip().lower() or None
         self.login_rate_limit = int(os.getenv("LOGIN_RATE_LIMIT", "10"))  # attempts per window
         self.login_rate_window_s = int(os.getenv("LOGIN_RATE_WINDOW_SECONDS", "900"))
+        self.reverify_after_days = int(os.getenv("REVERIFY_AFTER_DAYS", "180"))
         if self.env == "production" and self.email_backend == "dev_outbox":
             raise RuntimeError("dev_outbox email backend must not be used in production")
 

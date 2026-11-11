@@ -74,6 +74,12 @@ function CaseView() {
         <span className="badge">{STAGE_LABELS[c.stage] ?? c.stage}</span>
         <span className={`badge ${c.status === "open" ? "badge-ok" : ""}`}>{c.status}</span>
       </p>
+      {c.status === "open" && (
+        <p className="row">
+          <Link className="btn btn-secondary btn-small" href={`/advocate?case=${c.id}`}>Prepare my side with AI Advocate</Link>
+          <Link className="btn btn-secondary btn-small" href={`/judge?case=${c.id}`}>See both sides with AI Judge (hypothetical)</Link>
+        </p>
+      )}
       <FormError error={error} />
 
       {editing ? (

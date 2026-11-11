@@ -20,6 +20,15 @@ def _one_of(allowed: list[str], name: str):
     return check
 
 
+def _check_areas(v: list[str] | None) -> list[str] | None:
+    if v is None:
+        return v
+    bad = [a for a in v if a not in MATTER_TYPES]
+    if bad:
+        raise ValueError(f"Unknown practice areas: {', '.join(bad)}")
+    return sorted(set(v))
+
+
 # ---- auth ----
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -217,8 +226,13 @@ class SourceIn(BaseModel):
     effective_date: date | None = None
     legal_status: str = "unknown"
     notes: str = Field(default="", max_length=5000)
+    practice_areas: list[str] = Field(default_factory=list, max_length=20)
+    language: str = "en"
 
     _t = field_validator("source_type")(_one_of(SOURCE_TYPES, "source_type"))
+    _l = field_validator("language")(_one_of(LANGUAGES, "language"))
+
+    _pa = field_validator("practice_areas")(_check_areas)
     _a = field_validator("authority_level")(_one_of(AUTHORITY_LEVELS, "authority_level"))
     _s = field_validator("legal_status")(_one_of(LEGAL_STATUSES, "legal_status"))
 
@@ -240,6 +254,54 @@ class SourceOut(ORM):
     created_at: datetime
     reviewed_by: uuid.UUID | None
     last_verified_at: datetime | None
+    practice_areas: list[str]
+    language: str
+    link_status: str
+    link_checked_at: datetime | None
+
+
+class SourcePatch(BaseModel):
+    """Metadata corrections. Any change sends the source back for review."""
+
+    title: str | None = Field(default=None, min_length=3, max_length=400)
+    citation: str | None = Field(default=None, max_length=300)
+    effective_date: date | None = None
+    legal_status: str | None = None
+    practice_areas: list[str] | None = None
+    reason: str = Field(min_length=5, max_length=1000)
+
+    _s = field_validator("legal_status")(_one_of(LEGAL_STATUSES, "legal_status"))
+    _pa = field_validator("practice_areas")(_check_areas)
+
+
+class RelationIn(BaseModel):
+    target_source_id: uuid.UUID
+    kind: str
+    target_section_ref: str = Field(default="", max_length=30)
+    effective_date: date | None = None
+    note: str = Field(default="", max_length=2000)
+
+
+class DocumentOut(ORM):
+    id: uuid.UUID
+    filename: str
+    media_type: str
+    sha256: str
+    size_bytes: int
+    retrieved_from_url: str
+    retrieved_at: date
+    uploaded_by: uuid.UUID | None
+    uploaded_at: datetime
+    is_current: bool
+    extracted_chars: int
+
+
+class SectionOut(ORM):
+    id: uuid.UUID
+    ordinal: int
+    ref: str
+    heading: str
+    text: str
 
 
 class ReviewIn(BaseModel):

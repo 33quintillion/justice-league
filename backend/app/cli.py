@@ -1,4 +1,8 @@
-"""Operator commands: `python -m app.cli seed` and `python -m app.cli grant-role EMAIL ROLE`."""
+"""Operator commands:
+  python -m app.cli seed
+  python -m app.cli grant-role EMAIL ROLE
+  python -m app.cli import-official [KEY ...]   (keys from app/research/official_sources.json)
+"""
 import sys
 
 from sqlalchemy import select
@@ -19,6 +23,15 @@ def main(argv: list[str]) -> int:
             seed(db)
             print("Seeded jurisdictions, plans and feature flags.")
             return 0
+        if argv[0] == "import-official":
+            from .research.official_import import import_official
+
+            outcomes = import_official(db, argv[1:] or None)
+            for o in outcomes:
+                print(f"{o.key:14} {o.status:18} {o.detail}")
+            if any(o.status == "imported" for o in outcomes):
+                print("\nImported sources are pending review: a content reviewer must verify each one before it is published.")
+            return 0 if all(o.status in ("imported", "unchanged") for o in outcomes) else 1
         if argv[0] == "grant-role" and len(argv) == 3:
             email, role = argv[1].lower(), argv[2]
             if role not in Role._value2member_map_:
