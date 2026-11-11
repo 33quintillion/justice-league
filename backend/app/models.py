@@ -292,3 +292,59 @@ class SourceRelation(Base):
     note: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AIAnswer(Base):
+    """One AI role response, private to its owner. Staff have no endpoint that reads these."""
+
+    __tablename__ = "ai_answers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cases.id", ondelete="SET NULL"), index=True)
+    role: Mapped[str] = mapped_column(String(20))  # ask | lawyer | advocate | judge
+    question: Mapped[str] = mapped_column(Text)
+    jurisdiction_code: Mapped[str | None] = mapped_column(String(10))
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    status: Mapped[str] = mapped_column(String(30))  # answered | cannot_verify | needs_more_information
+    response: Mapped[dict] = mapped_column(JSON, default=dict)
+    checks: Mapped[dict] = mapped_column(JSON, default=dict)
+    urgency: Mapped[dict] = mapped_column(JSON, default=dict)
+    llm_called: Mapped[bool] = mapped_column(Boolean, default=False)
+    counts_toward_usage: Mapped[bool] = mapped_column(Boolean, default=False)
+    provider: Mapped[str] = mapped_column(String(30), default="")
+    model: Mapped[str] = mapped_column(String(80), default="")
+    prompt_version: Mapped[str] = mapped_column(String(40), default="")
+    provider_request_id: Mapped[str] = mapped_column(String(120), default="")
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    # Deleting an answer erases its content but keeps this row so monthly usage cannot be reset by deleting.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    def erase(self) -> None:
+        self.question, self.response, self.checks, self.urgency = "", {}, {}, {}
+        self.case_id, self.deleted_at = None, utcnow()
+        self.citations.clear()
+
+    citations: Mapped[list[AIAnswerCitation]] = relationship(
+        cascade="all, delete-orphan", order_by="AIAnswerCitation.label", lazy="selectin"
+    )
+
+
+class AIAnswerCitation(Base):
+    """The exact source version an answer relied on, kept even if the library later changes."""
+
+    __tablename__ = "ai_answer_citations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    answer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ai_answers.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str] = mapped_column(String(10))  # S1, S2 ... as used in the answer
+    cited: Mapped[bool] = mapped_column(Boolean, default=False)  # False: retrieved and shown to the model only
+    source_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("legal_sources.id", ondelete="SET NULL"))
+    section_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("source_sections.id", ondelete="SET NULL"))
+    document_sha256: Mapped[str] = mapped_column(String(64), default="")
+    source_title: Mapped[str] = mapped_column(String(400))
+    section_ref: Mapped[str] = mapped_column(String(60), default="")
+    official_url: Mapped[str] = mapped_column(String(1000))
+    section_text: Mapped[str] = mapped_column(Text, default="")

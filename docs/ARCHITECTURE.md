@@ -1,6 +1,6 @@
 # JUSTICE AI — Phase 1: requirements, architecture and plan
 
-Status: Phase 1 complete, Phase 2 foundation implemented (see `PHASE_REPORTS.md`).
+Status: Phases 1–4 implemented (see `PHASE_REPORTS.md`).
 
 ## 1. Product scope in one paragraph
 
@@ -32,7 +32,7 @@ Browser ──HTTPS──> Next.js (frontend/, App Router, TypeScript)
                    ├─ admin       RBAC console API, audit, plans, sources, flags
                    ├─ public      jurisdictions, plans, catalog, features, health
                    ├─ research    (Phase 3) ingestion, hybrid search, citation verifier
-                   ├─ ai          (Phase 4) provider-independent LLM gateway + 3 roles
+                   ├─ ai          (Phase 4) provider-independent LLM gateway + 4 roles
                    ├─ documents   (Phase 5) upload, OCR, generation, versions
                    └─ services    (Phase 6) lawyers, legal aid, billing
                      │
@@ -109,7 +109,7 @@ Government legal texts in India are generally publicly accessible, but terms of 
 | 1 | This document | Reviewed by product owner |
 | 2 ✅ | Auth, navigation, layouts, settings, cases, admin console, audit | Backend + browser tests pass (see report) |
 | 3 ✅ | Source ingestion (India Code first: e.g. Consumer Protection Act 2019, BNSS/BNS, Constitution Part III), chunking, hybrid search, citation verifier, Legal Library + Rights pages | Every displayed authority opens its official source; freshness tests; eval set v1 |
-| 4 | LLM gateway; Ask AI, Advocate, Lawyer, Judge; urgency detection; prompt-injection defences | Eval set incl. "insufficient information" cases; zero unverifiable citations in eval |
+| 4 ✅ | LLM gateway; Ask AI, Advocate, Lawyer, Judge; urgency detection; prompt-injection defences | Eval set incl. "insufficient information" cases; zero unverifiable citations in eval |
 | 5 | Uploads (PDF/DOCX/images + OCR, malware scan, encryption), Document Studio, versions, DOCX/PDF export | Upload security tests; generated drafts mark placeholders and separate user facts |
 | 6 | Lawyer discovery + verification workflow, legal aid directory, payment provider, usage metering | All listings verified or labelled; entitlement tests |
 | 7 | Security testing, accessibility audit, legal accuracy review with qualified reviewers | No critical vulns, no cross-user leaks, no systematic citation errors |

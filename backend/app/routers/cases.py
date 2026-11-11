@@ -9,7 +9,7 @@ from .. import audit
 from ..db import get_db
 from ..deps import current_user, verified_user
 from ..entitlements import limit, open_case_count
-from ..models import Case, CaseEvent, Jurisdiction, User
+from ..models import AIAnswer, Case, CaseEvent, Jurisdiction, User
 from ..schemas import CaseEventIn, CaseEventOut, CaseIn, CaseOut, CasePatch, CaseSummaryOut
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
@@ -78,6 +78,8 @@ def update_case(case_id: uuid.UUID, body: CasePatch, user: User = Depends(curren
 @router.delete("/{case_id}", status_code=204)
 def delete_case(case_id: uuid.UUID, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     case = _owned_case(db, user, case_id)
+    for a in db.scalars(select(AIAnswer).where(AIAnswer.case_id == case.id)).all():
+        a.erase()  # the answers discussed this case, so their content goes with it
     db.delete(case)
     audit.record(db, "case.deleted", actor_id=user.id, target_type="case", target_id=case_id, request=request)
     db.commit()

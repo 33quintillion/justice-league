@@ -71,13 +71,19 @@ await step("skip link is the first keyboard stop and moves focus to main", async
 });
 
 await step("unimplemented modules are honestly labelled, with no fake actions", async () => {
-  for (const p of ["/ask", "/advocate", "/lawyer", "/judge", "/documents", "/find-lawyer"]) {
+  for (const p of ["/documents", "/find-lawyer"]) {
     await page.goto(BASE + p);
     await page.getByText("Not available yet").first().waitFor();
     expect((await page.locator("main form, main input, main textarea").count()) === 0, `${p} has inputs`);
   }
+  // The AI roles are built (Phase 4) but offer no question form to anonymous visitors or while switched off.
+  for (const p of ["/ask", "/advocate", "/lawyer", "/judge"]) {
+    await page.goto(BASE + p);
+    await page.getByText(/not switched on yet|not configured on this server|Sign in/).first().waitFor();
+    expect((await page.locator("main form, main textarea").count()) === 0, `${p} has a form`);
+  }
   await page.goto(`${BASE}/judge`);
-  await page.getByText("Hypothetical AI legal analysis — not an actual judicial decision").waitFor();
+  await page.getByText("Hypothetical AI legal analysis — not an actual judicial decision").first().waitFor();
 });
 
 await step("protected pages ask anonymous visitors to sign in", async () => {

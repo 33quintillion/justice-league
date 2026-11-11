@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .routers import account, admin, admin_sources, auth, cases, dev, library, public
+from .routers import account, admin, admin_sources, ai, auth, cases, dev, library, public
 
 logging.basicConfig(level=logging.INFO, format='{"ts":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}')
 log = logging.getLogger("justice")
@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
         log.exception("unhandled error on %s %s", request.method, request.url.path)
         return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side. Please try again."})
 
-    for r in (public.router, auth.router, account.router, cases.router, admin_sources.router, admin.router, library.router):
+    for r in (public.router, auth.router, account.router, cases.router, admin_sources.router, admin.router, library.router, ai.router):
         app.include_router(r)
     if settings.is_dev:
         app.include_router(dev.router)

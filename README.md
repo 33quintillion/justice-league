@@ -2,7 +2,7 @@
 
 A public-interest legal information platform for India: understand your rights, organise your matter, and prepare to work with a qualified advocate. JUSTICE AI is **not** a lawyer, advocate or court.
 
-Current state: **Phase 3 (legal research)**. Accounts, settings, private case workspaces, plan limits, the admin console, and a verified-source legal library (official document ingestion, independent review, search, status warnings, citation verifier) work end to end. The AI roles and Document Studio are not built yet and are labelled as such in the app. No real legal sources are loaded yet: researchers add them from official sites through the admin console. See [`docs/PHASE_REPORTS.md`](docs/PHASE_REPORTS.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Current state: **Phase 4 (AI roles)**. Accounts, settings, private case workspaces, plan limits, the admin console, a verified-source legal library, and the four AI roles (Ask AI, AI Lawyer, AI Advocate, AI Judge) work end to end. The AI roles answer only from verified sources, need `ANTHROPIC_API_KEY` on the server (without it they say "not configured"), and stay behind feature flags until an administrator switches them on. Document Studio is not built yet and is labelled as such. No real legal sources are loaded yet: researchers add them from official sites through the admin console. See [`docs/PHASE_REPORTS.md`](docs/PHASE_REPORTS.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Layout
 
@@ -59,6 +59,10 @@ export DATABASE_URL=postgresql+psycopg://justice:...@localhost:5432/justice_e2e
 (cd backend && alembic upgrade head && python -m app.cli seed && uvicorn app.main:app --port 8000 &)
 cd frontend && npm run build && npm start &
 node e2e/run.mjs && node e2e/phase3.mjs       # screenshots in e2e/screenshots/
+# Phase 4 journeys use a local stand-in for the Anthropic API (no key, no network):
+node e2e/stub-anthropic.mjs &                 # then start the API with
+#   ANTHROPIC_API_KEY=e2e-stub ANTHROPIC_BASE_URL=http://127.0.0.1:8787
+node e2e/phase4.mjs
 
 # Grounding coverage of the legal evaluation set against the current library
 cd backend && python -m app.research.evaluate ../docs/eval/legal_eval_v1.jsonl

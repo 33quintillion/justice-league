@@ -10,6 +10,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .. import audit
+from ..ai.provider import get_provider
 from ..db import get_db
 from ..deps import require
 from ..models import AuditLog, AuthSession, Case, FeatureFlag, Jurisdiction, LegalSource, Plan, Subscription, User, UserRole
@@ -203,12 +204,13 @@ def audit_log(
 
 
 @router.get("/health")
-def system_health(_: User = Depends(require(Perm.HEALTH_READ)), db: Session = Depends(get_db)):
+def system_health(request: Request, _: User = Depends(require(Perm.HEALTH_READ)), db: Session = Depends(get_db)):
     db.execute(text("select 1"))
     count = lambda m: db.scalar(select(func.count()).select_from(m))  # noqa: E731
     return {
         "database": "ok",
         "alembic_revision": db.scalar(text("select version_num from alembic_version")),
+        "ai_provider_configured": get_provider(request.app) is not None,
         "counts": {
             "users": count(User), "cases": count(Case), "legal_sources": count(LegalSource),
             "active_sessions": db.scalar(select(func.count()).select_from(AuthSession)
